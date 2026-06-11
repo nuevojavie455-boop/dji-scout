@@ -1,0 +1,227 @@
+package com.dji.scout.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.dji.scout.viewmodel.ScoutViewModel
+
+private val BgColor = Color(0xFF0A0F1A)
+private val SurfaceColor = Color(0xFF111827)
+private val GreenLive = Color(0xFF4ADE80)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ScoutScreen(vm: ScoutViewModel = viewModel()) {
+    val frame by vm.frame.collectAsState()
+    val bitmap by vm.bitmap.collectAsState()
+    val connected by vm.connected.collectAsState()
+    val conf by vm.conf.collectAsState()
+
+    var showConfig by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        vm.connect(vm.getSavedIp(), vm.getSavedPort())
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BgColor)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+
+            // Top bar
+            Surface(color = SurfaceColor, shadowElevation = 4.dp) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(
+                                    color = if (connected) GreenLive else Color(0xFFEF4444),
+                                    shape = androidx.compose.foundation.shape.CircleShape
+                                )
+                        )
+                        Text(
+                            text = if (connected) "LIVE" else "OFFLINE",
+                            color = if (connected) GreenLive else Color(0xFFEF4444),
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Text(
+                        text = "DJI Scout",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    IconButton(onClick = { showConfig = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Config",
+                            tint = Color(0xFF9CA3AF)
+                        )
+                    }
+                }
+            }
+
+            // Video canvas
+            VideoCanvas(
+                bitmap = bitmap,
+                frame = frame,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            )
+
+            // Stats bar
+            Surface(color = SurfaceColor) {
+                StatsBar(
+                    frame = frame,
+                    conf = conf,
+                    onConfChange = { vm.setConf(it) }
+                )
+            }
+        }
+
+        if (showConfig) {
+            ConfigDialog(
+                initialIp = vm.getSavedIp(),
+                initialPort = vm.getSavedPort().toString(),
+                connected = connected,
+                onDismiss = { showConfig = false },
+                onConnect = { ip, port ->
+                    vm.connect(ip, port.toIntOrNull() ?: 8000)
+                    showConfig = false
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ConfigDialog(
+    initialIp: String,
+    initialPort: String,
+    connected: Boolean,
+    onDismiss: () -> Unit,
+    onConnect: (String, String) -> Unit
+) {
+    var ip by remember { mutableStateOf(initialIp) }
+    var port by remember { mutableStateOf(initialPort) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF111827),
+        titleContentColor = Color.White,
+        textContentColor = Color(0xFF9CA3AF),
+        title = {
+            Text(
+                text = "Configuración del servidor",
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .background(
+                                color = if (connected) GreenLive else Color(0xFFEF4444),
+                                shape = androidx.compose.foundation.shape.CircleShape
+                            )
+                    )
+                    Text(
+                        text = if (connected) "Conectado" else "Desconectado",
+                        color = if (connected) GreenLive else Color(0xFFEF4444),
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+
+                OutlinedTextField(
+                    value = ip,
+                    onValueChange = { ip = it },
+                    label = { Text("IP del servidor", fontFamily = FontFamily.Monospace) },
+                    placeholder = { Text("192.168.1.100") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GreenLive,
+                        unfocusedBorderColor = Color(0xFF374151),
+                        focusedLabelColor = GreenLive,
+                        cursorColor = GreenLive,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+
+                OutlinedTextField(
+                    value = port,
+                    onValueChange = { port = it },
+                    label = { Text("Puerto", fontFamily = FontFamily.Monospace) },
+                    placeholder = { Text("8000") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GreenLive,
+                        unfocusedBorderColor = Color(0xFF374151),
+                        focusedLabelColor = GreenLive,
+                        cursorColor = GreenLive,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConnect(ip, port) },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = GreenLive,
+                    contentColor = Color.Black
+                )
+            ) {
+                Text("Conectar", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar", color = Color(0xFF9CA3AF), fontFamily = FontFamily.Monospace)
+            }
+        }
+    )
+}
